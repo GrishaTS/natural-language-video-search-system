@@ -1,0 +1,5 @@
+creation_rules:
+  - path_regex: (\.env|\.env\.sops)$
+    age: age1tp3682na7mr5y3aaz6809hh2kjl2pxyepaufqjy9wgza2d9cudpqysn6kc
+    input_type: dotenv
+    output_type: dotenv

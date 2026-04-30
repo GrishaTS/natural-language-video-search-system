@@ -1,0 +1,21 @@
+datasets>=2.0
+pandas>=2.0
+matplotlib>=3.7
+tqdm>=4.65
+yt-dlp>=2024.1
+requests>=2.31
+pytest>=8.0
+notebook>=7.0
+seaborn>=0.13
+torch>=2.3.0
+torchvision>=0.18.0
+transformers>=4.50.0
+accelerate>=0.30.0
+qwen-vl-utils>=0.0.8
+decord>=0.6.0
+faiss-cpu>=1.8.0
+pyarrow>=15.0
+fastparquet>=2024.2.0
+clearml>=1.14
+lighthouse @ git+https://github.com/line/lighthouse.git
+gdown>=5.1.0

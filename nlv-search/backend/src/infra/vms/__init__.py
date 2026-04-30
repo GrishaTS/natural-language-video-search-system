@@ -1,0 +1,28 @@
+from src.infra.vms.api import VmsAPI
+from src.infra.vms.client import aclose_vms_client, get_vms_client
+from src.infra.vms.schemas import (
+    AgeParams,
+    AllEventFilter,
+    Beard,
+    CarBrand,
+    ChannelFilter,
+    Domain,
+    EventFilter,
+    FaceAttributes,
+    FaceFilter,
+    Gender,
+    Glasses,
+    Hat,
+    LocationInfo,
+    Mask,
+    ObjectType,
+    PersonEventFilter,
+    PersonFilter,
+    PersonFullName,
+    PlateFilter,
+    Race,
+    TagFilter,
+    VehicleColor,
+    VehicleEventFilter,
+    VehicleInfo,
+)

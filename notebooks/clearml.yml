@@ -1,0 +1,93 @@
+version: "3.6"
+
+# ClearML Server — локальный стек для логирования экспериментов
+# Запуск:  docker compose -f notebooks/clearml.yml up -d
+# UI:      http://localhost:8082
+# API:     http://localhost:8008
+# Files:   http://localhost:8081
+
+services:
+
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    volumes:
+      - clearml-mongo:/data/db
+      - clearml-mongo-config:/data/configdb
+    networks: [clearml]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.6
+    restart: unless-stopped
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - clearml-elastic:/usr/share/elasticsearch/data
+    networks: [clearml]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - clearml-redis:/data
+    networks: [clearml]
+
+  apiserver:
+    image: clearml/server:latest
+    restart: unless-stopped
+    command: apiserver
+    ports:
+      - "8008:8008"
+    depends_on:
+      - mongo
+      - elasticsearch
+      - redis
+    volumes:
+      - clearml-data:/opt/clearml/data
+      - clearml-logs:/var/log/clearml
+      - ./clearml_config:/opt/clearml/config
+    networks: [clearml]
+
+  fileserver:
+    image: clearml/server:latest
+    restart: unless-stopped
+    command: fileserver
+    ports:
+      - "8081:8081"
+    depends_on:
+      - apiserver
+    volumes:
+      - clearml-data:/opt/clearml/data
+      - ./clearml_config:/opt/clearml/config
+    networks: [clearml]
+
+  webserver:
+    image: clearml/server:latest
+    restart: unless-stopped
+    command: webserver
+    ports:
+      - "8082:80"
+    depends_on:
+      - apiserver
+    volumes:
+      - ./clearml_config:/opt/clearml/config
+    networks: [clearml]
+
+networks:
+  clearml:
+    driver: bridge
+
+volumes:
+  clearml-mongo:
+  clearml-mongo-config:
+  clearml-elastic:
+  clearml-redis:
+  clearml-data:
+  clearml-logs:

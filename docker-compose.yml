@@ -1,0 +1,202 @@
+services:
+  postgres-nlv-search:
+    container_name: nlv-search-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nlv-search-net
+
+  minio-nlv-search:
+    container_name: nlv-search-minio
+    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    restart: unless-stopped
+    command: server --console-address ":9001" /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - nlv-search-net
+
+  qdrant-nlv-search:
+    container_name: nlv-search-qdrant
+    image: qdrant/qdrant:v1.16.2
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    ports:
+      - "${QDRANT_PORT}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - nlv-search-net
+
+  redis-nlv-search:
+    container_name: nlv-search-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      - nlv-search-net
+
+  tei-nlv-search:
+    container_name: nlv-search-tei
+    image: ghcr.io/huggingface/text-embeddings-inference:latest
+    restart: unless-stopped
+    command:
+      - --model-id
+      - intfloat/multilingual-e5-base
+      - --max-batch-tokens
+      - "16384"
+      - --max-client-batch-size
+      - "64"
+    ports:
+      - "${TEI_PORT}:80"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${NVIDIA_VISIBLE_DEVICES}"]
+              capabilities: [gpu]
+    volumes:
+      - ./data/embeddings-cache:/data
+
+  ai-nlv-search:
+    container_name: nlv-search-ai
+    build:
+      context: ./nlv-search/ai
+    restart: unless-stopped
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      VERSION: ${VERSION}
+      AI_LOG_LEVEL: ${AI_LOG_LEVEL}
+      AI_RELOAD: ${AI_RELOAD:-true}
+      SERVICE_TOKEN: ${SERVICE_TOKEN}
+      VLLM_URL: ${VLLM_URL}
+      VLLM_API_KEY: ${VLLM_API_KEY}
+      VLLM_MODEL: ${VLLM_MODEL}
+      TEI_URL: ${TEI_URL}
+    volumes:
+      - ./nlv-search/ai/src:/app/src:delegated
+    depends_on:
+      tei-nlv-search:
+        condition: service_started
+    ports:
+      - "${AI_PORT}:8501"
+    networks:
+      - nlv-search-net
+
+  backend-nlv-search:
+    container_name: nlv-search-backend
+    build:
+      context: ./nlv-search/backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      VERSION: ${VERSION}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      QDRANT_HOST: ${QDRANT_HOST}
+      QDRANT_PORT: ${QDRANT_PORT}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      MINIO_HOST: ${MINIO_HOST}
+      MINIO_API_PORT: ${MINIO_API_PORT}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      AI_HOST: ${AI_HOST}
+      AI_PORT: ${AI_PORT}
+      BACKEND_LOG_LEVEL: ${BACKEND_LOG_LEVEL}
+      BACKEND_WORKERS: ${BACKEND_WORKERS}
+      BACKEND_RELOAD: ${BACKEND_RELOAD}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY}
+      AUTH_ALGORITHM: ${AUTH_ALGORITHM}
+      AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: ${AUTH_ACCESS_TOKEN_EXPIRE_MINUTES}
+      AUTH_ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME}
+      AUTH_ADMIN_PASSWORD_HASH: ${AUTH_ADMIN_PASSWORD_HASH}
+      SERVICE_TOKEN: ${SERVICE_TOKEN}
+      VLLM_URL: ${VLLM_URL}
+      VLLM_API_KEY: ${VLLM_API_KEY}
+      VLLM_MODEL: ${VLLM_MODEL}
+      VMS_API_URL: ${VMS_API_URL}
+      VMS_BEARER_TOKEN: ${VMS_BEARER_TOKEN}
+      VMS_USERNAME: ${VMS_USERNAME}
+      VMS_PASSWORD: ${VMS_PASSWORD}
+      VMS_FRONTEND_URL: ${VMS_FRONTEND_URL}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      NLV_BOT_USERNAME: ${NLV_BOT_USERNAME:-}
+      NLV_BOT_PASSWORD: ${NLV_BOT_PASSWORD:-}
+    volumes:
+      - ./nlv-search/backend/src:/app/src:delegated
+    depends_on:
+      postgres-nlv-search:
+        condition: service_healthy
+      minio-nlv-search:
+        condition: service_started
+      qdrant-nlv-search:
+        condition: service_started
+      redis-nlv-search:
+        condition: service_started
+      ai-nlv-search:
+        condition: service_started
+    ports:
+      - "${BACKEND_PUBLISHED_PORT:-8000}:${BACKEND_PORT}"
+    networks:
+      - nlv-search-net
+
+  frontend-nlv-search:
+    container_name: nlv-search-frontend
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+    volumes:
+      - ./nlv-search/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend-nlv-search:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    networks:
+      - nlv-search-net
+
+networks:
+  nlv-search-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  qdrant_data:
+  frontend_node_modules:

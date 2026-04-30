@@ -1,0 +1,39 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.env
+
+# pytest
+.pytest_cache/
+.coverage
+
+# notebooks
+.ipynb_checkpoints/
+
+# docker
+*.log
+last-test-logs.txt
+
+# node
+node_modules/
+dist/
+npm-debug.log
+
+# office
+*.docx
+~$*.docx
+
+# os
+.DS_Store
+
+# local dev
+drafts/
+temp/
+data/
+image.png
+clearml.conf
+clearml_conf/
+checkpoints
